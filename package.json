@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "workbox-window": "^7.3.0"
+  },
+  "devDependencies": {
+    "@types/workbox-window": "^4.3.4"
+  }
+}

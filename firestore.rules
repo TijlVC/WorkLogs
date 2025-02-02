@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Worklogs collectie
+    match /worklogs/{worklogId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Users collectie
+    match /users/{userId} {
+      allow create;  // Registratie toestaan
+      allow read, write: if request.auth != null && 
+        request.auth.uid == userId;  // Alleen eigen profiel beheren
+    }
+  }
+} 
