@@ -17,7 +17,6 @@ import { useAuth } from '../context/AuthContext';
 import { styled } from '@mui/material/styles';
 import { collection, query, orderBy, getDocs, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import CircleIcon from '@mui/icons-material/Circle';
 
 // Styled component voor de expand knop met rotatie
 const ExpandMore = styled((props: {
@@ -39,22 +38,11 @@ interface Worklog {
   date: string;
   userId: string;
   hours: number;
-  helpdeskSupport: {
-    incidents: Array<{
-      number: string;
-      description: string;
-    }>;
-  };
-  projects: Array<{
-    number: string;
-    description: string;
-  }>;
-  administration: {
-    meetings: Array<{
-      title: string;
-      notes: Array<string>;
-    }>;
-  };
+  projectTitle: string;
+  phase: string;
+  plannedTasks: Array<string>;
+  completedTasks: Array<string>;
+  administrativeTasks: Array<string>;
   other: Array<{
     task: string;
     description: string;
@@ -74,16 +62,24 @@ const WorklogList = () => {
   const fetchWorklogs = async () => {
     try {
       const worklogsRef = collection(db, 'worklogs');
-      const q = query(
-        worklogsRef,
-        orderBy('date', 'desc')
-      );
+      const q = query(worklogsRef, orderBy('date', 'desc'));
 
       const querySnapshot = await getDocs(q);
-      const worklogData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Worklog[];
+      const worklogData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          date: data.date || '',
+          userId: data.userId || '',
+          hours: data.hours || 0,
+          projectTitle: data.projectTitle || 'Project Netwerkvernieuwing GBS Tilia',
+          phase: data.phase || '',
+          plannedTasks: data.plannedTasks || [],
+          completedTasks: data.completedTasks || [],
+          administrativeTasks: data.administrativeTasks || [],
+          other: data.other || []
+        };
+      }) as Worklog[];
 
       setWorklogs(worklogData);
     } catch (error) {
@@ -205,91 +201,52 @@ const WorklogList = () => {
 
               {/* Content in uitgeklapte staat */}
               <Collapse in={expandedId === worklog.id} timeout="auto" unmountOnExit>
-                <CardContent sx={{ 
-                  px: { xs: 2, sm: 4 }, 
-                  py: 3 
-                }}>
-                  {/* Helpdesk Ondersteuning */}
+                <CardContent sx={{ px: 4, py: 3 }}>
+                  {/* Project Titel */}
                   <Typography variant="h6" bgcolor="grey.100" p={1} mb={2} textAlign="center">
-                    Helpdesk Ondersteuning
+                    {worklog.projectTitle}
                   </Typography>
-                  <Box mb={3} sx={{ pl: { xs: 1, sm: 4 } }}>
-                    {worklog.helpdeskSupport?.incidents.map((incident, index) => (
-                      <Box key={index} mb={1} sx={{
-                        display: 'flex',
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        gap: { xs: 1, sm: 2 }
-                      }}>
-                        <Typography variant="body1" sx={{ 
-                          minWidth: { xs: '100%', sm: '150px' }
-                        }}>
-                          Incident {incident.number}:
-                        </Typography>
-                        <Typography variant="body1" sx={{ 
-                          width: { xs: '100%', sm: '75%' },
-                          textAlign: 'left'
-                        }}>
-                          {incident.description}
-                        </Typography>
-                      </Box>
+
+                  {/* Fase */}
+                  <Box mb={3} sx={{ pl: 4 }}>
+                    <Typography variant="body1">
+                      Fase: {worklog.phase}
+                    </Typography>
+                  </Box>
+
+                  {/* Geplande Taken / Doelen */}
+                  <Typography variant="h6" bgcolor="grey.100" p={1} mb={2} textAlign="center">
+                    Geplande Taken / Doelen
+                  </Typography>
+                  <Box mb={3} sx={{ pl: 4 }}>
+                    {worklog.plannedTasks.map((task, index) => (
+                      <Typography key={index} variant="body1" sx={{ mb: 1 }}>
+                        - {task}
+                      </Typography>
                     ))}
                   </Box>
 
-                  {/* Projecten */}
+                  {/* Afgewerkte Taken / Doelen */}
                   <Typography variant="h6" bgcolor="grey.100" p={1} mb={2} textAlign="center">
-                    Projecten
+                    Afgewerkte Taken / Doelen
                   </Typography>
-                  <Box mb={3} sx={{ pl: { xs: 1, sm: 4 } }}>
-                    {worklog.projects?.map((project, index) => (
-                      <Box key={index} mb={1} sx={{
-                        display: 'flex',
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        gap: { xs: 1, sm: 2 }
-                      }}>
-                        <Typography variant="body1" sx={{ 
-                          minWidth: { xs: '100%', sm: '150px' }
-                        }}>
-                          Project {project.number}:
-                        </Typography>
-                        <Typography variant="body1" sx={{ 
-                          width: { xs: '100%', sm: '75%' },
-                          textAlign: 'left'
-                        }}>
-                          {project.description}
-                        </Typography>
-                      </Box>
+                  <Box mb={3} sx={{ pl: 4 }}>
+                    {worklog.completedTasks.map((task, index) => (
+                      <Typography key={index} variant="body1" sx={{ mb: 1 }}>
+                        - {task}
+                      </Typography>
                     ))}
                   </Box>
 
-                  {/* Administratie */}
+                  {/* Administratieve Taken */}
                   <Typography variant="h6" bgcolor="grey.100" p={1} mb={2} textAlign="center">
-                    Administratie
+                    Administratieve Taken
                   </Typography>
-                  <Box mb={3} sx={{ pl: { xs: 1, sm: 4 } }}>
-                    {worklog.administration?.meetings.map((meeting, index) => (
-                      <Box key={index} mb={2}>
-                        <Box mb={1} sx={{
-                          display: 'flex',
-                          flexDirection: { xs: 'column', sm: 'row' },
-                          gap: { xs: 1, sm: 2 }
-                        }}>
-                          <Typography variant="body1" sx={{ 
-                            minWidth: { xs: '100%', sm: '150px' }
-                          }}>
-                            {meeting.title}
-                          </Typography>
-                        </Box>
-                        <Box pl={4}>
-                          {meeting.notes.map((note, noteIndex) => (
-                            <Box key={noteIndex} display="flex" alignItems="center" mb={0.5}>
-                              <CircleIcon sx={{ fontSize: 8, mr: 1 }} />
-                              <Typography variant="body1">
-                                {note}
-                              </Typography>
-                            </Box>
-                          ))}
-                        </Box>
-                      </Box>
+                  <Box mb={3} sx={{ pl: 4 }}>
+                    {worklog.administrativeTasks.map((task, index) => (
+                      <Typography key={index} variant="body1" sx={{ mb: 1 }}>
+                        - {task}
+                      </Typography>
                     ))}
                   </Box>
 
@@ -297,22 +254,13 @@ const WorklogList = () => {
                   <Typography variant="h6" bgcolor="grey.100" p={1} mb={2} textAlign="center">
                     Overige
                   </Typography>
-                  <Box mb={3} sx={{ pl: { xs: 1, sm: 4 } }}>
-                    {worklog.other?.map((item, index) => (
-                      <Box key={index} mb={1} sx={{
-                        display: 'flex',
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        gap: { xs: 1, sm: 2 }
-                      }}>
-                        <Typography variant="body1" sx={{ 
-                          minWidth: { xs: '100%', sm: '150px' }
-                        }}>
+                  <Box mb={3} sx={{ pl: 4 }}>
+                    {worklog.other.map((item, index) => (
+                      <Box key={index} mb={1} display="flex" justifyContent="space-between">
+                        <Typography variant="body1" sx={{ minWidth: '150px' }}>
                           {item.task}:
                         </Typography>
-                        <Typography variant="body1" sx={{ 
-                          width: { xs: '100%', sm: '75%' },
-                          textAlign: 'left'
-                        }}>
+                        <Typography variant="body1" sx={{ width: '75%', textAlign: 'left' }}>
                           {item.description}
                         </Typography>
                       </Box>

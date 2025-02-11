@@ -21,26 +21,16 @@ import { collection } from 'firebase/firestore';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { db as indexedDB } from '../utils/db';
+import { IWorklog } from '../utils/db';
 
 interface WorklogFormData {
   date: Date;
   hours: number;
-  helpdeskSupport: {
-    incidents: Array<{
-      number: string;
-      description: string;
-    }>;
-  };
-  projects: Array<{
-    number: string;
-    description: string;
-  }>;
-  administration: {
-    meetings: Array<{
-      title: string;
-      notes: Array<string>;
-    }>;
-  };
+  projectTitle: string;
+  phase: string;
+  plannedTasks: Array<string>;
+  completedTasks: Array<string>;
+  administrativeTasks: Array<string>;
   other: Array<{
     task: string;
     description: string;
@@ -50,16 +40,11 @@ interface WorklogFormData {
 const emptyWorklog: WorklogFormData = {
   date: new Date(),
   hours: 8,
-  helpdeskSupport: {
-    incidents: []
-  },
-  projects: [],
-  administration: {
-    meetings: [{
-      title: '',
-      notes: ['']
-    }]
-  },
+  projectTitle: 'Project Netwerkvernieuwing GBS Tilia',
+  phase: '',
+  plannedTasks: [''],
+  completedTasks: [''],
+  administrativeTasks: [''],
   other: []
 };
 
@@ -84,16 +69,11 @@ const WorklogForm = () => {
       setFormData({
         date: new Date(data.date),
         hours: data.hours || 8,
-        helpdeskSupport: {
-          incidents: data.helpdeskSupport?.incidents || []
-        },
-        projects: data.projects || [],
-        administration: {
-          meetings: data.administration?.meetings || [{
-            title: '',
-            notes: ['']
-          }]
-        },
+        projectTitle: data.projectTitle || 'Project Netwerkvernieuwing GBS Tilia',
+        phase: data.phase || '',
+        plannedTasks: data.plannedTasks || [''],
+        completedTasks: data.completedTasks || [''],
+        administrativeTasks: data.administrativeTasks || [''],
         other: data.other || []
       });
     }
@@ -103,16 +83,17 @@ const WorklogForm = () => {
     e.preventDefault();
     if (!user) return;
 
-    const worklogData = {
+    const worklogData: IWorklog = {
       userId: user.id,
       date: format(formData.date, 'yyyy-MM-dd'),
       hours: formData.hours,
-      helpdeskSupport: formData.helpdeskSupport,
-      projects: formData.projects,
-      administration: formData.administration,
+      projectTitle: formData.projectTitle,
+      phase: formData.phase,
+      plannedTasks: formData.plannedTasks,
+      completedTasks: formData.completedTasks,
+      administrativeTasks: formData.administrativeTasks,
       other: formData.other,
-      updatedAt: new Date().toISOString(),
-      syncStatus: 'pending' as const
+      syncStatus: 'pending'
     };
 
     try {
@@ -122,7 +103,7 @@ const WorklogForm = () => {
       try {
         // Probeer naar Firebase te syncen
         if (id) {
-          await updateDoc(doc(db, 'worklogs', id), worklogData);
+          await updateDoc(doc(db, 'worklogs', id), worklogData as { [key: string]: any });
         } else {
           const newWorklogRef = doc(collection(db, 'worklogs'));
           await setDoc(newWorklogRef, {
@@ -145,31 +126,6 @@ const WorklogForm = () => {
   };
 
   // Helper functions voor het toevoegen/verwijderen van items
-  const addIncident = () => {
-    setFormData({
-      ...formData,
-      helpdeskSupport: {
-        incidents: [...formData.helpdeskSupport.incidents, { number: '', description: '' }]
-      }
-    });
-  };
-
-  const addProject = () => {
-    setFormData({
-      ...formData,
-      projects: [...formData.projects, { number: '', description: '' }]
-    });
-  };
-
-  const addMeetingNote = (meetingIndex: number) => {
-    const newMeetings = [...formData.administration.meetings];
-    newMeetings[meetingIndex].notes.push('');
-    setFormData({
-      ...formData,
-      administration: { meetings: newMeetings }
-    });
-  };
-
   const addOtherTask = () => {
     setFormData({
       ...formData,
@@ -204,194 +160,157 @@ const WorklogForm = () => {
               </Box>
             </Grid>
 
-            {/* Helpdesk Ondersteuning */}
+            {/* Project Titel */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Project Titel"
+                value={formData.projectTitle}
+                onChange={(e) => setFormData({ ...formData, projectTitle: e.target.value })}
+              />
+            </Grid>
+
+            {/* Fase */}
+            <Grid item xs={12}>
+              <TextField
+                select
+                fullWidth
+                label="Fase"
+                value={formData.phase}
+                onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
+                SelectProps={{
+                  native: true,
+                }}
+              >
+                <option value="">Selecteer een fase</option>
+                <option value="Fase Voorbereiding">Fase Voorbereiding</option>
+                <option value="Fase 1 - Tijdelijke netwerk">Fase 1 - Tijdelijke netwerk</option>
+                <option value="Fase 2 - Bekabelingswerken">Fase 2 - Bekabelingswerken</option>
+                <option value="Fase 3 - Uitrol netwerk">Fase 3 - Uitrol netwerk</option>
+              </TextField>
+            </Grid>
+
+            {/* Geplande Taken / Doelen */}
             <Grid item xs={12}>
               <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Helpdesk Ondersteuning
+                Geplande Taken / Doelen
               </Typography>
               <List>
-                {formData.helpdeskSupport.incidents.map((incident, index) => (
+                {formData.plannedTasks.map((task, index) => (
                   <ListItem key={index}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={3}>
-                        <TextField
-                          fullWidth
-                          label="Incident nummer"
-                          value={incident.number}
-                          onChange={(e) => {
-                            const newIncidents = [...formData.helpdeskSupport.incidents];
-                            newIncidents[index].number = e.target.value;
-                            setFormData({
-                              ...formData,
-                              helpdeskSupport: { incidents: newIncidents }
-                            });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={8}>
-                        <TextField
-                          fullWidth
-                          label="Omschrijving"
-                          value={incident.description}
-                          onChange={(e) => {
-                            const newIncidents = [...formData.helpdeskSupport.incidents];
-                            newIncidents[index].description = e.target.value;
-                            setFormData({
-                              ...formData,
-                              helpdeskSupport: { incidents: newIncidents }
-                            });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          onClick={() => {
-                            const newIncidents = formData.helpdeskSupport.incidents.filter((_, i) => i !== index);
-                            setFormData({
-                              ...formData,
-                              helpdeskSupport: { incidents: newIncidents }
-                            });
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
+                    <TextField
+                      fullWidth
+                      label={`Taak ${index + 1}`}
+                      value={task}
+                      onChange={(e) => {
+                        const newTasks = [...formData.plannedTasks];
+                        newTasks[index] = e.target.value;
+                        setFormData({ ...formData, plannedTasks: newTasks });
+                      }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        onClick={() => {
+                          const newTasks = formData.plannedTasks.filter((_, i) => i !== index);
+                          setFormData({ ...formData, plannedTasks: newTasks });
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
                   </ListItem>
                 ))}
               </List>
               <Button
                 startIcon={<AddIcon />}
-                onClick={addIncident}
+                onClick={() => setFormData({ ...formData, plannedTasks: [...formData.plannedTasks, ''] })}
                 variant="outlined"
                 sx={{ mt: 1 }}
               >
-                Incident toevoegen
+                Taak toevoegen
               </Button>
             </Grid>
 
-            {/* Projecten */}
+            {/* Afgewerkte Taken / Doelen */}
             <Grid item xs={12}>
               <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Projecten
+                Afgewerkte Taken / Doelen
               </Typography>
               <List>
-                {formData.projects.map((project, index) => (
+                {formData.completedTasks.map((task, index) => (
                   <ListItem key={index}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={3}>
-                        <TextField
-                          fullWidth
-                          label="Project nummer"
-                          value={project.number}
-                          onChange={(e) => {
-                            const newProjects = [...formData.projects];
-                            newProjects[index].number = e.target.value;
-                            setFormData({ ...formData, projects: newProjects });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={8}>
-                        <TextField
-                          fullWidth
-                          label="Omschrijving"
-                          value={project.description}
-                          onChange={(e) => {
-                            const newProjects = [...formData.projects];
-                            newProjects[index].description = e.target.value;
-                            setFormData({ ...formData, projects: newProjects });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          onClick={() => {
-                            const newProjects = formData.projects.filter((_, i) => i !== index);
-                            setFormData({ ...formData, projects: newProjects });
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
+                    <TextField
+                      fullWidth
+                      label={`Taak ${index + 1}`}
+                      value={task}
+                      onChange={(e) => {
+                        const newTasks = [...formData.completedTasks];
+                        newTasks[index] = e.target.value;
+                        setFormData({ ...formData, completedTasks: newTasks });
+                      }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        onClick={() => {
+                          const newTasks = formData.completedTasks.filter((_, i) => i !== index);
+                          setFormData({ ...formData, completedTasks: newTasks });
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
                   </ListItem>
                 ))}
               </List>
               <Button
                 startIcon={<AddIcon />}
-                onClick={addProject}
+                onClick={() => setFormData({ ...formData, completedTasks: [...formData.completedTasks, ''] })}
                 variant="outlined"
                 sx={{ mt: 1 }}
               >
-                Project toevoegen
+                Taak toevoegen
               </Button>
             </Grid>
 
-            {/* Administratie */}
+            {/* Administratieve Taken */}
             <Grid item xs={12}>
               <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Administratie
+                Administratieve Taken
               </Typography>
-              {formData.administration.meetings.map((meeting, meetingIndex) => (
-                <Box key={meetingIndex} mb={3}>
-                  <TextField
-                    fullWidth
-                    label="Titel"
-                    value={meeting.title}
-                    onChange={(e) => {
-                      const newMeetings = [...formData.administration.meetings];
-                      newMeetings[meetingIndex].title = e.target.value;
-                      setFormData({
-                        ...formData,
-                        administration: { meetings: newMeetings }
-                      });
-                    }}
-                    sx={{ mb: 2 }}
-                  />
-                  <List>
-                    {meeting.notes.map((note, noteIndex) => (
-                      <ListItem key={noteIndex}>
-                        <TextField
-                          fullWidth
-                          label={`Notitie ${noteIndex + 1}`}
-                          value={note}
-                          onChange={(e) => {
-                            const newMeetings = [...formData.administration.meetings];
-                            newMeetings[meetingIndex].notes[noteIndex] = e.target.value;
-                            setFormData({
-                              ...formData,
-                              administration: { meetings: newMeetings }
-                            });
-                          }}
-                        />
-                        <ListItemSecondaryAction>
-                          <IconButton
-                            onClick={() => {
-                              const newMeetings = [...formData.administration.meetings];
-                              newMeetings[meetingIndex].notes = meeting.notes.filter((_, i) => i !== noteIndex);
-                              setFormData({
-                                ...formData,
-                                administration: { meetings: newMeetings }
-                              });
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                    ))}
-                  </List>
-                  <Button
-                    startIcon={<AddIcon />}
-                    onClick={() => addMeetingNote(meetingIndex)}
-                    variant="outlined"
-                    size="small"
-                    sx={{ mt: 1 }}
-                  >
-                    Notitie toevoegen
-                  </Button>
-                </Box>
-              ))}
+              <List>
+                {formData.administrativeTasks.map((task, index) => (
+                  <ListItem key={index}>
+                    <TextField
+                      fullWidth
+                      label={`Taak ${index + 1}`}
+                      value={task}
+                      onChange={(e) => {
+                        const newTasks = [...formData.administrativeTasks];
+                        newTasks[index] = e.target.value;
+                        setFormData({ ...formData, administrativeTasks: newTasks });
+                      }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        onClick={() => {
+                          const newTasks = formData.administrativeTasks.filter((_, i) => i !== index);
+                          setFormData({ ...formData, administrativeTasks: newTasks });
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={() => setFormData({ ...formData, administrativeTasks: [...formData.administrativeTasks, ''] })}
+                variant="outlined"
+                sx={{ mt: 1 }}
+              >
+                Taak toevoegen
+              </Button>
             </Grid>
 
             {/* Overige */}

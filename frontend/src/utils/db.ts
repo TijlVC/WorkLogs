@@ -5,22 +5,11 @@ export interface IWorklog {
   date: string;
   userId: string;
   hours: number;
-  helpdeskSupport: {
-    incidents: Array<{
-      number: string;
-      description: string;
-    }>;
-  };
-  projects: Array<{
-    number: string;
-    description: string;
-  }>;
-  administration: {
-    meetings: Array<{
-      title: string;
-      notes: Array<string>;
-    }>;
-  };
+  projectTitle: string;
+  phase: string;
+  plannedTasks: Array<string>;
+  completedTasks: Array<string>;
+  administrativeTasks: Array<string>;
   other: Array<{
     task: string;
     description: string;
