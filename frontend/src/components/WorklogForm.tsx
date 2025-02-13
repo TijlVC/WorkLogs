@@ -23,10 +23,14 @@ import { collection } from 'firebase/firestore';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { db as indexedDB } from '../utils/db';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 interface Task {
   task: string;
   completed: boolean;
+  timeSpent: number;
 }
 
 interface WorklogFormData {
@@ -47,11 +51,11 @@ const phases = [
 
 const emptyWorklog: WorklogFormData = {
   date: new Date(),
-  hours: 8,
+  hours: 0,
   projectTitle: 'Project Netwerkvernieuwing GBS Tilia',
   phase: '',
-  plannedTasks: [],
-  administrativeTasks: []
+  plannedTasks: [{ task: '', completed: false, timeSpent: 0 }],
+  administrativeTasks: [{ task: '', completed: false, timeSpent: 0 }]
 };
 
 const WorklogForm = () => {
@@ -125,7 +129,7 @@ const WorklogForm = () => {
   const addTask = (type: 'plannedTasks' | 'administrativeTasks') => {
     setFormData({
       ...formData,
-      [type]: [...formData[type], { task: '', completed: false }]
+      [type]: [...formData[type], { task: '', completed: false, timeSpent: 0 }]
     });
   };
 
@@ -148,6 +152,142 @@ const WorklogForm = () => {
     setFormData({ ...formData, [type]: newTasks });
   };
 
+  const moveTask = (type: 'plannedTasks' | 'administrativeTasks', index: number, direction: 'up' | 'down') => {
+    const tasks = [...formData[type]];
+    if (direction === 'up' && index > 0) {
+      [tasks[index], tasks[index - 1]] = [tasks[index - 1], tasks[index]];
+    } else if (direction === 'down' && index < tasks.length - 1) {
+      [tasks[index], tasks[index + 1]] = [tasks[index + 1], tasks[index]];
+    }
+    setFormData({ ...formData, [type]: tasks });
+  };
+
+  const handleTimeChange = (type: 'plannedTasks' | 'administrativeTasks', index: number, value: string) => {
+    const newTasks = [...formData[type]];
+    const timeSpent = Math.max(0, Math.round(parseFloat(value || '0') * 4) / 4);
+    newTasks[index] = { ...newTasks[index], timeSpent };
+    
+    const totalTime = [
+      ...(type === 'plannedTasks' ? newTasks : formData.plannedTasks),
+      ...(type === 'administrativeTasks' ? newTasks : formData.administrativeTasks)
+    ].reduce((sum, task) => sum + (task.timeSpent || 0), 0);
+    
+    setFormData({ 
+      ...formData, 
+      [type]: newTasks,
+      hours: totalTime
+    });
+  };
+
+  const renderTaskList = (type: 'plannedTasks' | 'administrativeTasks') => (
+    <>
+      <Box sx={{ 
+        display: 'flex', 
+        bgcolor: 'grey.100',
+        p: 1,
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <Typography variant="h6" component="div">
+          {type === 'plannedTasks' ? 'Geplande Taken / Doelen' : 'Administratieve / Overige Taken'}
+        </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 0.5,
+          mr: 11.5
+        }}>
+          <AccessTimeIcon fontSize="small" />
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              lineHeight: 1, 
+              fontSize: '0.7rem',
+              whiteSpace: 'pre-line',
+              display: 'block'
+            }}
+          >
+            {'Gew.\ntijd'}
+          </Typography>
+        </Box>
+      </Box>
+
+      <List sx={{ py: 0 }}>
+        {formData[type].map((task, index) => (
+          <ListItem key={index} sx={{ 
+            py: 0.25,
+            '& .MuiTextField-root': {
+              my: 0.25
+            }
+          }}>
+            <Checkbox
+              checked={task.completed}
+              onChange={() => toggleTaskCompletion(type, index)}
+            />
+            <TextField
+              fullWidth
+              multiline
+              value={task.task}
+              onChange={(e) => handleTaskChange(type, index, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                  e.preventDefault();
+                  const newValue = task.task + '\n';
+                  handleTaskChange(type, index, newValue);
+                }
+              }}
+              sx={{ 
+                mx: 1,
+                '& .MuiInputBase-input': {
+                  color: task.completed ? 'success.main' : 'inherit'
+                }
+              }}
+            />
+            <TextField
+              type="number"
+              value={task.timeSpent || ''}
+              onChange={(e) => handleTimeChange(type, index, e.target.value)}
+              inputProps={{ 
+                step: 0.25,
+                min: 0,
+                style: { 
+                  width: '60px',
+                  color: task.completed ? 'success.main' : 'inherit'
+                }
+              }}
+              sx={{ 
+                width: '100px', 
+                mr: 1,
+                '& .MuiInputBase-input': {
+                  py: 0.75
+                }
+              }}
+            />
+            <Box>
+              <IconButton 
+                onClick={() => moveTask(type, index, 'up')}
+                disabled={index === 0}
+                size="small"
+              >
+                <ArrowUpwardIcon />
+              </IconButton>
+              <IconButton 
+                onClick={() => moveTask(type, index, 'down')}
+                disabled={index === formData[type].length - 1}
+                size="small"
+              >
+                <ArrowDownwardIcon />
+              </IconButton>
+              <IconButton onClick={() => removeTask(type, index)} size="small">
+                <DeleteIcon />
+              </IconButton>
+            </Box>
+          </ListItem>
+        ))}
+      </List>
+    </>
+  );
+
   return (
     <form onSubmit={handleSubmit}>
       <Paper elevation={3}>
@@ -166,7 +306,11 @@ const WorklogForm = () => {
                   type="number"
                   label="Aantal uren"
                   value={formData.hours}
-                  onChange={(e) => setFormData({ ...formData, hours: Number(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, hours: Math.round(parseFloat(e.target.value) * 4) / 4 })}
+                  inputProps={{ 
+                    step: 0.25,
+                    min: 0
+                  }}
                   sx={{ width: 100 }}
                 />
                 <Typography variant="h6">
@@ -205,37 +349,7 @@ const WorklogForm = () => {
 
             {/* Geplande Taken */}
             <Grid item xs={12}>
-              <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Geplande Taken / Doelen
-              </Typography>
-              <List>
-                {formData.plannedTasks.map((task, index) => (
-                  <ListItem key={index}>
-                    <Checkbox
-                      checked={task.completed}
-                      onChange={() => toggleTaskCompletion('plannedTasks', index)}
-                    />
-                    <TextField
-                      fullWidth
-                      multiline
-                      value={task.task}
-                      onChange={(e) => handleTaskChange('plannedTasks', index, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.ctrlKey) {
-                          e.preventDefault();
-                          const newValue = task.task + '\n';
-                          handleTaskChange('plannedTasks', index, newValue);
-                        }
-                      }}
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton onClick={() => removeTask('plannedTasks', index)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
+              {renderTaskList('plannedTasks')}
               <Button
                 startIcon={<AddIcon />}
                 onClick={() => addTask('plannedTasks')}
@@ -248,37 +362,7 @@ const WorklogForm = () => {
 
             {/* Administratieve / Overige Taken */}
             <Grid item xs={12}>
-              <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Administratieve / Overige Taken
-              </Typography>
-              <List>
-                {formData.administrativeTasks.map((task, index) => (
-                  <ListItem key={index}>
-                    <Checkbox
-                      checked={task.completed}
-                      onChange={() => toggleTaskCompletion('administrativeTasks', index)}
-                    />
-                    <TextField
-                      fullWidth
-                      multiline
-                      value={task.task}
-                      onChange={(e) => handleTaskChange('administrativeTasks', index, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.ctrlKey) {
-                          e.preventDefault();
-                          const newValue = task.task + '\n';
-                          handleTaskChange('administrativeTasks', index, newValue);
-                        }
-                      }}
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton onClick={() => removeTask('administrativeTasks', index)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
+              {renderTaskList('administrativeTasks')}
               <Button
                 startIcon={<AddIcon />}
                 onClick={() => addTask('administrativeTasks')}
