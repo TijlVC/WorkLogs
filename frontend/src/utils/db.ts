@@ -5,25 +5,15 @@ export interface IWorklog {
   date: string;
   userId: string;
   hours: number;
-  helpdeskSupport: {
-    incidents: Array<{
-      number: string;
-      description: string;
-    }>;
-  };
-  projects: Array<{
-    number: string;
-    description: string;
-  }>;
-  administration: {
-    meetings: Array<{
-      title: string;
-      notes: Array<string>;
-    }>;
-  };
-  other: Array<{
+  projectTitle: string;
+  phase: string;
+  plannedTasks: Array<{
     task: string;
-    description: string;
+    completed: boolean;
+  }>;
+  administrativeTasks: Array<{
+    task: string;
+    completed: boolean;
   }>;
   syncStatus?: 'pending' | 'synced' | 'error';
 }
@@ -33,10 +23,10 @@ export class WorklogDB extends Dexie {
 
   constructor() {
     super('worklogDB');
-    this.version(1).stores({
+    this.version(3).stores({
       worklogs: '++id, date, userId, syncStatus'
     });
   }
 }
 
-export const db = new WorklogDB(); 
+export const db = new WorklogDB();

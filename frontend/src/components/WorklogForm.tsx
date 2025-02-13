@@ -9,7 +9,9 @@ import {
   IconButton,
   List,
   ListItem,
-  ListItemSecondaryAction
+  ListItemSecondaryAction,
+  Checkbox,
+  MenuItem
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -22,45 +24,34 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { db as indexedDB } from '../utils/db';
 
+interface Task {
+  task: string;
+  completed: boolean;
+}
+
 interface WorklogFormData {
   date: Date;
   hours: number;
-  helpdeskSupport: {
-    incidents: Array<{
-      number: string;
-      description: string;
-    }>;
-  };
-  projects: Array<{
-    number: string;
-    description: string;
-  }>;
-  administration: {
-    meetings: Array<{
-      title: string;
-      notes: Array<string>;
-    }>;
-  };
-  other: Array<{
-    task: string;
-    description: string;
-  }>;
+  projectTitle: string;
+  phase: string;
+  plannedTasks: Task[];
+  administrativeTasks: Task[];
 }
+
+const phases = [
+  'Voorbereiding',
+  'Fase 1 - Tijdelijke netwerk',
+  'Fase 2 - Bekabelingswerken',
+  'Fase 3 - Uitrol netwerk'
+];
 
 const emptyWorklog: WorklogFormData = {
   date: new Date(),
   hours: 8,
-  helpdeskSupport: {
-    incidents: []
-  },
-  projects: [],
-  administration: {
-    meetings: [{
-      title: '',
-      notes: ['']
-    }]
-  },
-  other: []
+  projectTitle: 'Project Netwerkvernieuwing GBS Tilia',
+  phase: '',
+  plannedTasks: [],
+  administrativeTasks: []
 };
 
 const WorklogForm = () => {
@@ -84,17 +75,10 @@ const WorklogForm = () => {
       setFormData({
         date: new Date(data.date),
         hours: data.hours || 8,
-        helpdeskSupport: {
-          incidents: data.helpdeskSupport?.incidents || []
-        },
-        projects: data.projects || [],
-        administration: {
-          meetings: data.administration?.meetings || [{
-            title: '',
-            notes: ['']
-          }]
-        },
-        other: data.other || []
+        projectTitle: data.projectTitle || 'Project Netwerkvernieuwing GBS Tilia',
+        phase: data.phase || '',
+        plannedTasks: data.plannedTasks || [],
+        administrativeTasks: data.administrativeTasks || []
       });
     }
   };
@@ -107,20 +91,17 @@ const WorklogForm = () => {
       userId: user.id,
       date: format(formData.date, 'yyyy-MM-dd'),
       hours: formData.hours,
-      helpdeskSupport: formData.helpdeskSupport,
-      projects: formData.projects,
-      administration: formData.administration,
-      other: formData.other,
-      updatedAt: new Date().toISOString(),
+      projectTitle: formData.projectTitle,
+      phase: formData.phase,
+      plannedTasks: formData.plannedTasks,
+      administrativeTasks: formData.administrativeTasks,
       syncStatus: 'pending' as const
     };
 
     try {
-      // Sla eerst lokaal op
       const localId = await indexedDB.worklogs.add(worklogData);
 
       try {
-        // Probeer naar Firebase te syncen
         if (id) {
           await updateDoc(doc(db, 'worklogs', id), worklogData);
         } else {
@@ -130,12 +111,9 @@ const WorklogForm = () => {
             createdAt: new Date().toISOString()
           });
         }
-
-        // Update sync status
         await indexedDB.worklogs.update(localId, { syncStatus: 'synced' });
       } catch (error) {
         console.error('Sync error:', error);
-        // Laat in IndexedDB met 'pending' status voor latere sync
       }
 
       navigate('/');
@@ -144,37 +122,30 @@ const WorklogForm = () => {
     }
   };
 
-  // Helper functions voor het toevoegen/verwijderen van items
-  const addIncident = () => {
+  const addTask = (type: 'plannedTasks' | 'administrativeTasks') => {
     setFormData({
       ...formData,
-      helpdeskSupport: {
-        incidents: [...formData.helpdeskSupport.incidents, { number: '', description: '' }]
-      }
+      [type]: [...formData[type], { task: '', completed: false }]
     });
   };
 
-  const addProject = () => {
+  const removeTask = (type: 'plannedTasks' | 'administrativeTasks', index: number) => {
     setFormData({
       ...formData,
-      projects: [...formData.projects, { number: '', description: '' }]
+      [type]: formData[type].filter((_, i) => i !== index)
     });
   };
 
-  const addMeetingNote = (meetingIndex: number) => {
-    const newMeetings = [...formData.administration.meetings];
-    newMeetings[meetingIndex].notes.push('');
-    setFormData({
-      ...formData,
-      administration: { meetings: newMeetings }
-    });
+  const handleTaskChange = (type: 'plannedTasks' | 'administrativeTasks', index: number, value: string) => {
+    const newTasks = [...formData[type]];
+    newTasks[index] = { ...newTasks[index], task: value };
+    setFormData({ ...formData, [type]: newTasks });
   };
 
-  const addOtherTask = () => {
-    setFormData({
-      ...formData,
-      other: [...formData.other, { task: '', description: '' }]
-    });
+  const toggleTaskCompletion = (type: 'plannedTasks' | 'administrativeTasks', index: number) => {
+    const newTasks = [...formData[type]];
+    newTasks[index] = { ...newTasks[index], completed: !newTasks[index].completed };
+    setFormData({ ...formData, [type]: newTasks });
   };
 
   return (
@@ -182,9 +153,9 @@ const WorklogForm = () => {
       <Paper elevation={3}>
         <Box p={3}>
           <Grid container spacing={3}>
-            {/* Header */}
+            {/* Header met datum en uren */}
             <Grid item xs={12}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Box display="flex" justifyContent="space-between" alignItems="center">
                 <DatePicker
                   label="Datum"
                   value={formData.date}
@@ -204,246 +175,70 @@ const WorklogForm = () => {
               </Box>
             </Grid>
 
-            {/* Helpdesk Ondersteuning */}
+            {/* Project Titel en Fase */}
+            <Grid item xs={12} container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Project Titel"
+                  value={formData.projectTitle}
+                  onChange={(e) => setFormData({ ...formData, projectTitle: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Fase"
+                  value={formData.phase}
+                  onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
+                >
+                  <MenuItem value="">Selecteer een fase</MenuItem>
+                  {phases.map((phase) => (
+                    <MenuItem key={phase} value={phase}>
+                      {phase}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
+
+            {/* Geplande Taken */}
             <Grid item xs={12}>
               <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Helpdesk Ondersteuning
+                Geplande Taken / Doelen
               </Typography>
               <List>
-                {formData.helpdeskSupport.incidents.map((incident, index) => (
+                {formData.plannedTasks.map((task, index) => (
                   <ListItem key={index}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={3}>
-                        <TextField
-                          fullWidth
-                          label="Incident nummer"
-                          value={incident.number}
-                          onChange={(e) => {
-                            const newIncidents = [...formData.helpdeskSupport.incidents];
-                            newIncidents[index].number = e.target.value;
-                            setFormData({
-                              ...formData,
-                              helpdeskSupport: { incidents: newIncidents }
-                            });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={8}>
-                        <TextField
-                          fullWidth
-                          label="Omschrijving"
-                          value={incident.description}
-                          onChange={(e) => {
-                            const newIncidents = [...formData.helpdeskSupport.incidents];
-                            newIncidents[index].description = e.target.value;
-                            setFormData({
-                              ...formData,
-                              helpdeskSupport: { incidents: newIncidents }
-                            });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          onClick={() => {
-                            const newIncidents = formData.helpdeskSupport.incidents.filter((_, i) => i !== index);
-                            setFormData({
-                              ...formData,
-                              helpdeskSupport: { incidents: newIncidents }
-                            });
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
+                    <Checkbox
+                      checked={task.completed}
+                      onChange={() => toggleTaskCompletion('plannedTasks', index)}
+                    />
+                    <TextField
+                      fullWidth
+                      multiline
+                      value={task.task}
+                      onChange={(e) => handleTaskChange('plannedTasks', index, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey) {
+                          e.preventDefault();
+                          const newValue = task.task + '\n';
+                          handleTaskChange('plannedTasks', index, newValue);
+                        }
+                      }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton onClick={() => removeTask('plannedTasks', index)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
                   </ListItem>
                 ))}
               </List>
               <Button
                 startIcon={<AddIcon />}
-                onClick={addIncident}
-                variant="outlined"
-                sx={{ mt: 1 }}
-              >
-                Incident toevoegen
-              </Button>
-            </Grid>
-
-            {/* Projecten */}
-            <Grid item xs={12}>
-              <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Projecten
-              </Typography>
-              <List>
-                {formData.projects.map((project, index) => (
-                  <ListItem key={index}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={3}>
-                        <TextField
-                          fullWidth
-                          label="Project nummer"
-                          value={project.number}
-                          onChange={(e) => {
-                            const newProjects = [...formData.projects];
-                            newProjects[index].number = e.target.value;
-                            setFormData({ ...formData, projects: newProjects });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={8}>
-                        <TextField
-                          fullWidth
-                          label="Omschrijving"
-                          value={project.description}
-                          onChange={(e) => {
-                            const newProjects = [...formData.projects];
-                            newProjects[index].description = e.target.value;
-                            setFormData({ ...formData, projects: newProjects });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          onClick={() => {
-                            const newProjects = formData.projects.filter((_, i) => i !== index);
-                            setFormData({ ...formData, projects: newProjects });
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  </ListItem>
-                ))}
-              </List>
-              <Button
-                startIcon={<AddIcon />}
-                onClick={addProject}
-                variant="outlined"
-                sx={{ mt: 1 }}
-              >
-                Project toevoegen
-              </Button>
-            </Grid>
-
-            {/* Administratie */}
-            <Grid item xs={12}>
-              <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Administratie
-              </Typography>
-              {formData.administration.meetings.map((meeting, meetingIndex) => (
-                <Box key={meetingIndex} mb={3}>
-                  <TextField
-                    fullWidth
-                    label="Titel"
-                    value={meeting.title}
-                    onChange={(e) => {
-                      const newMeetings = [...formData.administration.meetings];
-                      newMeetings[meetingIndex].title = e.target.value;
-                      setFormData({
-                        ...formData,
-                        administration: { meetings: newMeetings }
-                      });
-                    }}
-                    sx={{ mb: 2 }}
-                  />
-                  <List>
-                    {meeting.notes.map((note, noteIndex) => (
-                      <ListItem key={noteIndex}>
-                        <TextField
-                          fullWidth
-                          label={`Notitie ${noteIndex + 1}`}
-                          value={note}
-                          onChange={(e) => {
-                            const newMeetings = [...formData.administration.meetings];
-                            newMeetings[meetingIndex].notes[noteIndex] = e.target.value;
-                            setFormData({
-                              ...formData,
-                              administration: { meetings: newMeetings }
-                            });
-                          }}
-                        />
-                        <ListItemSecondaryAction>
-                          <IconButton
-                            onClick={() => {
-                              const newMeetings = [...formData.administration.meetings];
-                              newMeetings[meetingIndex].notes = meeting.notes.filter((_, i) => i !== noteIndex);
-                              setFormData({
-                                ...formData,
-                                administration: { meetings: newMeetings }
-                              });
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                    ))}
-                  </List>
-                  <Button
-                    startIcon={<AddIcon />}
-                    onClick={() => addMeetingNote(meetingIndex)}
-                    variant="outlined"
-                    size="small"
-                    sx={{ mt: 1 }}
-                  >
-                    Notitie toevoegen
-                  </Button>
-                </Box>
-              ))}
-            </Grid>
-
-            {/* Overige */}
-            <Grid item xs={12}>
-              <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
-                Overige
-              </Typography>
-              <List>
-                {formData.other.map((item, index) => (
-                  <ListItem key={index}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={3}>
-                        <TextField
-                          fullWidth
-                          label="Taak"
-                          value={item.task}
-                          onChange={(e) => {
-                            const newOther = [...formData.other];
-                            newOther[index].task = e.target.value;
-                            setFormData({ ...formData, other: newOther });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={8}>
-                        <TextField
-                          fullWidth
-                          label="Omschrijving"
-                          value={item.description}
-                          onChange={(e) => {
-                            const newOther = [...formData.other];
-                            newOther[index].description = e.target.value;
-                            setFormData({ ...formData, other: newOther });
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={1}>
-                        <IconButton
-                          onClick={() => {
-                            const newOther = formData.other.filter((_, i) => i !== index);
-                            setFormData({ ...formData, other: newOther });
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  </ListItem>
-                ))}
-              </List>
-              <Button
-                startIcon={<AddIcon />}
-                onClick={addOtherTask}
+                onClick={() => addTask('plannedTasks')}
                 variant="outlined"
                 sx={{ mt: 1 }}
               >
@@ -451,7 +246,50 @@ const WorklogForm = () => {
               </Button>
             </Grid>
 
-            {/* Actions */}
+            {/* Administratieve / Overige Taken */}
+            <Grid item xs={12}>
+              <Typography variant="h6" bgcolor="grey.100" p={1} mb={2}>
+                Administratieve / Overige Taken
+              </Typography>
+              <List>
+                {formData.administrativeTasks.map((task, index) => (
+                  <ListItem key={index}>
+                    <Checkbox
+                      checked={task.completed}
+                      onChange={() => toggleTaskCompletion('administrativeTasks', index)}
+                    />
+                    <TextField
+                      fullWidth
+                      multiline
+                      value={task.task}
+                      onChange={(e) => handleTaskChange('administrativeTasks', index, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey) {
+                          e.preventDefault();
+                          const newValue = task.task + '\n';
+                          handleTaskChange('administrativeTasks', index, newValue);
+                        }
+                      }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton onClick={() => removeTask('administrativeTasks', index)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={() => addTask('administrativeTasks')}
+                variant="outlined"
+                sx={{ mt: 1 }}
+              >
+                Taak toevoegen
+              </Button>
+            </Grid>
+
+            {/* Knoppen */}
             <Grid item xs={12}>
               <Box display="flex" justifyContent="flex-end" gap={2}>
                 <Button variant="outlined" onClick={() => navigate('/')}>
