@@ -29,4 +29,4 @@ export class WorklogDB extends Dexie {
   }
 }
 
-export const db = new WorklogDB();
+export const db = new WorklogDB(); 

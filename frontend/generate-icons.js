@@ -23,4 +23,4 @@ async function generateIcons() {
     .toFile('./public/icons/maskable-icon-512x512.png');
 }
 
-generateIcons().catch(console.error);
+generateIcons().catch(console.error); 

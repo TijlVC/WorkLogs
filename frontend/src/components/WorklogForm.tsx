@@ -239,7 +239,13 @@ const WorklogForm = () => {
               sx={{ 
                 mx: 1,
                 '& .MuiInputBase-input': {
-                  color: task.completed ? 'success.main' : 'inherit'
+                  color: task.completed ? 'success.main' : 'inherit',
+                  py: 0.75,
+                  minHeight: 'unset',
+                  height: '1.4375em'
+                },
+                '& .MuiOutlinedInput-root': {
+                  padding: '0.75em'
                 }
               }}
             />
@@ -304,14 +310,14 @@ const WorklogForm = () => {
                 />
                 <TextField
                   type="number"
-                  label="Aantal uren"
+                  label="Totaal Gewerkte Tijd"
                   value={formData.hours}
                   onChange={(e) => setFormData({ ...formData, hours: Math.round(parseFloat(e.target.value) * 4) / 4 })}
                   inputProps={{ 
                     step: 0.25,
                     min: 0
                   }}
-                  sx={{ width: 100 }}
+                  sx={{ width: 150 }}
                 />
                 <Typography variant="h6">
                   Week: {getISOWeek(formData.date)}
